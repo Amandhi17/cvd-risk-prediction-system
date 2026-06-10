@@ -1,98 +1,63 @@
 """
 Data cleaning for the IBM HR Attrition dataset.
 
-Decisions confirmed from notebooks/eda.ipynb:
-- No missing values, no duplicates in the raw file.
-- Drop 3 constant columns: EmployeeCount, Over18, StandardHours.
-- Drop EmployeeNumber (ID, no signal).
-- Validate ranges and tenure-vs-age/career consistency; fail loudly on bad data.
+Steps:
+1. Drop 3 constant columns (EmployeeCount, Over18, StandardHours)
+2. Drop the ID column (EmployeeNumber)
+3. Drop any duplicate rows
+4. Validate ranges and logical consistency
 """
 
-from pathlib import Path
-import logging
 import pandas as pd
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s",
-)
-logger = logging.getLogger(__name__)
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-RAW_PATH = PROJECT_ROOT / "data" / "WA_Fn-UseC_-HR-Employee-Attrition.csv"
-CLEAN_PATH = PROJECT_ROOT / "data" / "cleaned.csv"
+RAW_PATH = "data/WA_Fn-UseC_-HR-Employee-Attrition.csv"
+CLEAN_PATH = "data/cleaned.csv"
 
 DROP_COLS = ["EmployeeCount", "Over18", "StandardHours", "EmployeeNumber"]
 
 
-def load_raw(path: Path = RAW_PATH) -> pd.DataFrame:
-    logger.info(f"Loading raw data from {path}")
-    return pd.read_csv(path)
+def clean_data(df: pd.DataFrame) -> pd.DataFrame:
+    print("Original shape:", df.shape)
 
+    # 1. drop useless columns
+    df = df.drop(columns=DROP_COLS)
+    print("After dropping useless columns:", df.shape)
 
-def drop_useless_columns(df: pd.DataFrame) -> pd.DataFrame:
-    present = [c for c in DROP_COLS if c in df.columns]
-    logger.info(f"Dropping columns: {present}")
-    return df.drop(columns=present)
-
-
-def drop_duplicates(df: pd.DataFrame) -> pd.DataFrame:
+    # 2. drop duplicates
     before = len(df)
     df = df.drop_duplicates().reset_index(drop=True)
     removed = before - len(df)
-    if removed:
-        logger.warning(f"Removed {removed} duplicate rows")
+    if removed > 0:
+        print(f"Removed {removed} duplicate rows")
+    else:
+        print("No duplicates found")
+
+    # 3. range validation
+    assert (df["Age"] >= 18).all(),              "Age must be >= 18"
+    assert (df["YearsAtCompany"] >= 0).all(),    "YearsAtCompany must be >= 0"
+    assert (df["MonthlyIncome"] > 0).all(),      "MonthlyIncome must be > 0"
+
+    # 4. logical consistency
+    assert (df["YearsAtCompany"] <= df["TotalWorkingYears"]).all(), \
+        "YearsAtCompany cannot exceed TotalWorkingYears"
+    assert (df["YearsAtCompany"] <= (df["Age"] - 18)).all(), \
+        "YearsAtCompany cannot exceed Age - 18"
+    assert (df["YearsInCurrentRole"] <= df["YearsAtCompany"]).all(), \
+        "YearsInCurrentRole cannot exceed YearsAtCompany"
+    assert (df["YearsWithCurrManager"] <= df["YearsAtCompany"]).all(), \
+        "YearsWithCurrManager cannot exceed YearsAtCompany"
+
+    # 5. target check
+    assert set(df["Attrition"].unique()) == {"Yes", "No"}, \
+        "Attrition must only contain Yes/No"
+
+    print("All validation checks passed")
+    print("Final cleaned shape:", df.shape)
     return df
-
-
-def validate_ranges(df: pd.DataFrame) -> None:
-    """Hard checks — raise if data violates expected ranges."""
-    checks = {
-        "Age < 18": (df["Age"] < 18).sum(),
-        "YearsAtCompany < 0": (df["YearsAtCompany"] < 0).sum(),
-        "MonthlyIncome <= 0": (df["MonthlyIncome"] <= 0).sum(),
-        "YearsAtCompany > TotalWorkingYears":
-            (df["YearsAtCompany"] > df["TotalWorkingYears"]).sum(),
-        "YearsAtCompany > (Age - 18)":
-            (df["YearsAtCompany"] > (df["Age"] - 18)).sum(),
-        "YearsInCurrentRole > YearsAtCompany":
-            (df["YearsInCurrentRole"] > df["YearsAtCompany"]).sum(),
-        "YearsWithCurrManager > YearsAtCompany":
-            (df["YearsWithCurrManager"] > df["YearsAtCompany"]).sum(),
-    }
-    failed = {rule: int(n) for rule, n in checks.items() if n > 0}
-    if failed:
-        raise ValueError(f"Data validation failed: {failed}")
-    logger.info("All range and consistency checks passed")
-
-
-def validate_target(df: pd.DataFrame) -> None:
-    allowed = {"Yes", "No"}
-    actual = set(df["Attrition"].unique())
-    if not actual.issubset(allowed):
-        raise ValueError(f"Unexpected Attrition values: {actual - allowed}")
-    logger.info(
-        f"Target distribution: {df['Attrition'].value_counts().to_dict()}"
-    )
-
-
-def clean_data(df: pd.DataFrame) -> pd.DataFrame:
-    """Full cleaning pipeline. Returns a new DataFrame."""
-    df = drop_useless_columns(df)
-    df = drop_duplicates(df)
-    validate_ranges(df)
-    validate_target(df)
-    logger.info(f"Cleaned shape: {df.shape}")
-    return df
-
-
-def main() -> None:
-    raw = load_raw()
-    cleaned = clean_data(raw)
-    CLEAN_PATH.parent.mkdir(parents=True, exist_ok=True)
-    cleaned.to_csv(CLEAN_PATH, index=False)
-    logger.info(f"Wrote cleaned data to {CLEAN_PATH}")
 
 
 if __name__ == "__main__":
-    main()
+    df = pd.read_csv(RAW_PATH)
+    cleaned = clean_data(df)
+    cleaned.to_csv(CLEAN_PATH, index=False)
+    print(f"Saved cleaned data to {CLEAN_PATH}")
