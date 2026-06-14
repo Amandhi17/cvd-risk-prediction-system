@@ -180,32 +180,6 @@ Per-patient explanations are also generated — see `reports/shap_high_risk.png`
 
 ---
 
-## Design Decisions & Trade-offs
-
-These were deliberate choices made during the project — useful talking points for review/interview.
-
-### Why these 4 models?
-- **Logistic Regression**: linear baseline. If a complex model can't beat it, the complexity isn't justified.
-- **Random Forest**: robust, handles non-linearity, immune to multicollinearity.
-- **Gradient Boosting**: sequential learning, usually beats RF on tabular data.
-- **XGBoost**: regularised + production-grade.
-
-Together they span the model space: linear vs non-linear, bagging vs boosting, plain vs regularised.
-
-### Why pick the winner by ROC-AUC, not accuracy?
-ROC-AUC measures how well the model **ranks** positives above negatives across all thresholds — threshold-independent quality. Accuracy alone would have been misleading even on this balanced dataset because it ignores how confident the model is.
-
-### Why use SHAP?
-Probability scores aren't actionable in a clinical context. SHAP attributes each prediction to specific risk factors ("+0.18 from high systolic BP, −0.04 from being physically active"), turning the black-box model into a decision-support tool.
-
-### Why no class-weight handling?
-Earlier iterations on a different dataset (employee attrition, 84/16 imbalance) used `class_weight='balanced'` and SMOTE — both were carefully compared. For the cardio dataset the target is ~50/50, so no rebalancing was needed.
-
-### Why combine ML + LLM?
-**Predictive AI tells you WHAT will happen. Generative AI tells you WHAT TO DO about it.** The XGBoost/GBM model outputs a probability; Gemini translates that probability + the patient profile into concrete prevention recommendations a clinician or patient can act on.
-
----
-
 ## Known Limitations
 
 These are explicitly documented because acknowledging them is part of responsible ML engineering.
