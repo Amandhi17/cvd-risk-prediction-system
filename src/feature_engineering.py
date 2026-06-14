@@ -1,70 +1,62 @@
 """
-Feature engineering for the IBM HR Attrition dataset.
+Feature engineering for the Cardiovascular Disease dataset.
 
-Adds 3 derived features (per project plan, Phase 5):
-- IncomePerYear     = MonthlyIncome * 12
-- OvertimeRiskFlag  = 1 if OverTime == 'Yes' else 0  (replaces OverTime column)
-- ExperienceRatio   = YearsAtCompany / Age
+Adds 4 derived features:
+- age_years     = age / 365.25         (age was in days, convert to years)
+- bmi           = weight / (height/100)^2
+- pulse_pressure = ap_hi - ap_lo
+- map_pressure  = (ap_hi + 2 * ap_lo) / 3   (mean arterial pressure)
+
+The original `age` column (in days) is dropped after conversion.
 
 Reads:  data/cleaned.csv
 Writes: data/featured.csv
 """
 
-from pathlib import Path
-import logging
 import pandas as pd
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s",
-)
-logger = logging.getLogger(__name__)
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-CLEAN_PATH = PROJECT_ROOT / "data" / "cleaned.csv"
-FEATURED_PATH = PROJECT_ROOT / "data" / "featured.csv"
+CLEAN_PATH = "data/cleaned.csv"
+FEATURED_PATH = "data/featured.csv"
 
 
-def add_income_per_year(df: pd.DataFrame) -> pd.DataFrame:
+def add_age_years(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
-    df["IncomePerYear"] = df["MonthlyIncome"] * 12
+    df["age_years"] = (df["age"] / 365.25).round(1)
+    df = df.drop(columns=["age"])
     return df
 
 
-def add_overtime_flag(df: pd.DataFrame) -> pd.DataFrame:
+def add_bmi(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
-    df["OvertimeRiskFlag"] = (df["OverTime"] == "Yes").astype(int)
-    df = df.drop(columns=["OverTime"])
+    df["bmi"] = (df["weight"] / (df["height"] / 100) ** 2).round(2)
     return df
 
 
-def add_experience_ratio(df: pd.DataFrame) -> pd.DataFrame:
+def add_pulse_pressure(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
-    df["ExperienceRatio"] = df["YearsAtCompany"] / df["Age"]
+    df["pulse_pressure"] = df["ap_hi"] - df["ap_lo"]
+    return df
+
+
+def add_map_pressure(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    df["map_pressure"] = ((df["ap_hi"] + 2 * df["ap_lo"]) / 3).round(2)
     return df
 
 
 def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Apply all feature-engineering steps."""
-    logger.info(f"Input shape: {df.shape}")
-    df = add_income_per_year(df)
-    df = add_overtime_flag(df)
-    df = add_experience_ratio(df)
-    logger.info(f"Output shape: {df.shape}")
-    logger.info(
-        "New features: IncomePerYear, OvertimeRiskFlag, ExperienceRatio"
-    )
+    print("Input shape:", df.shape)
+    df = add_age_years(df)
+    df = add_bmi(df)
+    df = add_pulse_pressure(df)
+    df = add_map_pressure(df)
+    print("Output shape:", df.shape)
+    print("New features: age_years, bmi, pulse_pressure, map_pressure")
     return df
 
 
-def main() -> None:
-    logger.info(f"Loading cleaned data from {CLEAN_PATH}")
+if __name__ == "__main__":
     df = pd.read_csv(CLEAN_PATH)
     df = engineer_features(df)
-    FEATURED_PATH.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(FEATURED_PATH, index=False)
-    logger.info(f"Wrote featured data to {FEATURED_PATH}")
-
-
-if __name__ == "__main__":
-    main()
+    print(f"Saved featured data to {FEATURED_PATH}")

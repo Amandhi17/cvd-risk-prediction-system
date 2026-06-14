@@ -1,63 +1,72 @@
 """
-Data cleaning for the IBM HR Attrition dataset.
+Data cleaning for the Cardiovascular Disease dataset.
 
-Steps:
-1. Drop 3 constant columns (EmployeeCount, Over18, StandardHours)
-2. Drop the ID column (EmployeeNumber)
-3. Drop any duplicate rows
-4. Validate ranges and logical consistency
+Raw schema (semicolon-separated):
+  id, age (days), gender, height (cm), weight (kg),
+  ap_hi (systolic), ap_lo (diastolic),
+  cholesterol (1/2/3), gluc (1/2/3),
+  smoke (0/1), alco (0/1), active (0/1),
+  cardio (target 0/1)
+
+Cleaning steps:
+1. Drop the id column (no predictive value)
+2. Drop duplicate rows
+3. Remove physiologically impossible records:
+   - ap_hi must be 70-250
+   - ap_lo must be 40-200
+   - ap_hi must be >= ap_lo
+   - height 100-220 cm
+   - weight 30-250 kg
+   (This dataset is well known to contain data-entry errors in BP, hence
+   the explicit range filtering — not just an assertion.)
 """
 
 import pandas as pd
 
-RAW_PATH = "data/WA_Fn-UseC_-HR-Employee-Attrition.csv"
+RAW_PATH = "data/cardio_data.csv"
 CLEAN_PATH = "data/cleaned.csv"
-
-DROP_COLS = ["EmployeeCount", "Over18", "StandardHours", "EmployeeNumber"]
 
 
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     print("Original shape:", df.shape)
 
-    # 1. drop useless columns
-    df = df.drop(columns=DROP_COLS)
-    print("After dropping useless columns:", df.shape)
+    # 1. drop id
+    if "id" in df.columns:
+        df = df.drop(columns=["id"])
+        print("Dropped id column")
 
     # 2. drop duplicates
     before = len(df)
     df = df.drop_duplicates().reset_index(drop=True)
     removed = before - len(df)
-    if removed > 0:
+    if removed:
         print(f"Removed {removed} duplicate rows")
     else:
         print("No duplicates found")
 
-    # 3. range validation
-    assert (df["Age"] >= 18).all(),              "Age must be >= 18"
-    assert (df["YearsAtCompany"] >= 0).all(),    "YearsAtCompany must be >= 0"
-    assert (df["MonthlyIncome"] > 0).all(),      "MonthlyIncome must be > 0"
+    # 3. range filtering — drop rows with implausible values
+    before = len(df)
+    df = df[
+        (df["ap_hi"].between(70, 250)) &
+        (df["ap_lo"].between(40, 200)) &
+        (df["ap_hi"] >= df["ap_lo"]) &
+        (df["height"].between(100, 220)) &
+        (df["weight"].between(30, 250))
+    ].reset_index(drop=True)
+    removed = before - len(df)
+    print(f"Removed {removed} rows with implausible measurements")
 
-    # 4. logical consistency
-    assert (df["YearsAtCompany"] <= df["TotalWorkingYears"]).all(), \
-        "YearsAtCompany cannot exceed TotalWorkingYears"
-    assert (df["YearsAtCompany"] <= (df["Age"] - 18)).all(), \
-        "YearsAtCompany cannot exceed Age - 18"
-    assert (df["YearsInCurrentRole"] <= df["YearsAtCompany"]).all(), \
-        "YearsInCurrentRole cannot exceed YearsAtCompany"
-    assert (df["YearsWithCurrManager"] <= df["YearsAtCompany"]).all(), \
-        "YearsWithCurrManager cannot exceed YearsAtCompany"
+    # 4. target sanity check
+    assert set(df["cardio"].unique()) == {0, 1}, \
+        "cardio must only contain 0 / 1"
 
-    # 5. target check
-    assert set(df["Attrition"].unique()) == {"Yes", "No"}, \
-        "Attrition must only contain Yes/No"
-
-    print("All validation checks passed")
+    print(f"Target distribution: {df['cardio'].value_counts().to_dict()}")
     print("Final cleaned shape:", df.shape)
     return df
 
 
 if __name__ == "__main__":
-    df = pd.read_csv(RAW_PATH)
+    df = pd.read_csv(RAW_PATH, sep=";")
     cleaned = clean_data(df)
     cleaned.to_csv(CLEAN_PATH, index=False)
     print(f"Saved cleaned data to {CLEAN_PATH}")

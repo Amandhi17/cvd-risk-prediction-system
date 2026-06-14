@@ -1,36 +1,29 @@
 """
-Phase 7 — Model Evaluation.
+Model Evaluation for the Cardiovascular Disease dataset.
 
 Loads all 4 trained models and evaluates on the held-out test set.
 
 Metrics:
-- Accuracy
-- Precision
-- Recall  (most important for HR — catch leavers)
-- F1
-- ROC-AUC
+- Accuracy, Precision, Recall, F1, ROC-AUC
 
-Outputs:
-- Comparison table printed to console
-- Confusion matrix grid -> reports/confusion_matrices.png
-- ROC curves grid       -> reports/roc_curves.png
-- Best model copied to  -> models/best_model.pkl
+Target is balanced, so accuracy and ROC-AUC are both meaningful.
+We pick the winner by ROC-AUC (threshold-independent quality measure).
+
+Outputs (in reports/):
+- test_metrics.csv
+- confusion_matrices.png
+- roc_curves.png
+And best model copied to models/best_model.pkl
 """
 
 import os
 import joblib
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import seaborn as sns
 from sklearn.metrics import (
-    accuracy_score,
-    precision_score,
-    recall_score,
-    f1_score,
-    roc_auc_score,
-    confusion_matrix,
-    roc_curve,
+    accuracy_score, precision_score, recall_score, f1_score,
+    roc_auc_score, confusion_matrix, roc_curve,
 )
 
 X_TEST_PATH = "data/X_test.csv"
@@ -63,12 +56,13 @@ def evaluate(model, X_test, y_test) -> dict:
     }
 
 
-def plot_confusion_matrices(results: dict, y_test, out_path: str) -> None:
+def plot_confusion_matrices(results, y_test, out_path):
     fig, axes = plt.subplots(2, 2, figsize=(10, 9))
     for ax, (name, res) in zip(axes.flatten(), results.items()):
         cm = confusion_matrix(y_test, res["y_pred"])
         sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", cbar=False, ax=ax,
-                    xticklabels=["No", "Yes"], yticklabels=["No", "Yes"])
+                    xticklabels=["No CVD", "CVD"],
+                    yticklabels=["No CVD", "CVD"])
         ax.set_title(f"{name}\nRecall = {res['recall']:.2f} | "
                      f"F1 = {res['f1']:.2f}")
         ax.set_xlabel("Predicted")
@@ -79,7 +73,7 @@ def plot_confusion_matrices(results: dict, y_test, out_path: str) -> None:
     print(f"  saved confusion matrices -> {out_path}")
 
 
-def plot_roc_curves(results: dict, y_test, out_path: str) -> None:
+def plot_roc_curves(results, y_test, out_path):
     plt.figure(figsize=(8, 6))
     for name, res in results.items():
         fpr, tpr, _ = roc_curve(y_test, res["y_proba"])
@@ -106,7 +100,6 @@ def main() -> None:
 
     results = {name: evaluate(m, X_test, y_test) for name, m in models.items()}
 
-    # Comparison table
     metric_cols = ["accuracy", "precision", "recall", "f1", "roc_auc"]
     table = pd.DataFrame(
         {name: {m: res[m] for m in metric_cols} for name, res in results.items()}
@@ -116,14 +109,13 @@ def main() -> None:
     table.to_csv(f"{REPORTS_DIR}/test_metrics.csv")
     print(f"\nSaved table -> {REPORTS_DIR}/test_metrics.csv\n")
 
-    # Plots
     plot_confusion_matrices(results, y_test,
                             f"{REPORTS_DIR}/confusion_matrices.png")
     plot_roc_curves(results, y_test, f"{REPORTS_DIR}/roc_curves.png")
 
-    # Pick the best model — optimise for F1 (balances precision and recall)
-    best_name = table["f1"].idxmax()
-    print(f"\nBest model by F1: {best_name} (F1 = {table.loc[best_name, 'f1']:.4f})")
+    best_name = table["roc_auc"].idxmax()
+    print(f"\nBest model by ROC-AUC: {best_name} "
+          f"(ROC-AUC = {table.loc[best_name, 'roc_auc']:.4f})")
     joblib.dump(models[best_name], f"{MODELS_DIR}/best_model.pkl")
     print(f"Saved -> {MODELS_DIR}/best_model.pkl")
 
