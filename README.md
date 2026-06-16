@@ -1,6 +1,6 @@
 # Cardiovascular Disease Risk Prediction — End-to-End MLOps Pipeline
 
-A production-style machine-learning system that predicts a patient's cardiovascular disease (CVD) risk from routine clinical measurements, served through a FastAPI backend and an HR-friendly Streamlit dashboard with AI-generated prevention tips.
+A production-style machine-learning system that predicts a patient's cardiovascular disease (CVD) risk from routine clinical measurements, served through a FastAPI backend and a user-friendly Streamlit dashboard with AI-generated prevention tips.
 
 > ⚠️ **Disclaimer:** This project is for educational and portfolio purposes only. It is not a medical device and must not be used for clinical decision-making.
 
